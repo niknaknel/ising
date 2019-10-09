@@ -10,7 +10,7 @@ FLAGS ?= $(DEBUG) -O2 -Wall -Wno-variadic-macros -pedantic -g $(GCC_SUPPFLAGS)
 LDFLAGS ?= -g
 LDLIBS = -lm
 
-EXECUTABLE = my_executable
+EXECUTABLE = ising
 
 SRCS=$(wildcard src/*.c)
 OBJS=$(SRCS:src/%.c=obj/%.o)
