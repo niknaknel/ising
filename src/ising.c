@@ -15,46 +15,54 @@
 #define N  (L*L)
 #define XNN 1
 #define YNN L
-#define ONES 0 // uniform 1s initial state
-#define NEG_ONES 1 // uniform -1s initial state
-#define INF 2  // random initial state
+#define T_ZERO_NEG 0  // uniform 1s initial state
+#define T_ZERO_POS 1  // uniform -1s initial state
+#define T_INF 2       // random initial state
+#define SEED 123123
 
+/* Functions */
 void initialize(int state);
 void sweep();
 void display_lattice();
+long *gen_seed();
 
-/* GLOBAL DECLARATIONS: */
+/* Globals */
+int TIME_SEED;    // 1 if time seed is to be used else 0
 int s[N];         // The Lattice
 double prob[5];   // Flip probability for given temperature
 double beta;      // Inverse temperature 1/kT
 
 /**
  * Main simulation loop.
- * Usage: ./ising [temperature:float] [init_state:int=0 (ZERO), 1 (INF)]
+ * Usage: ./ising temp init_state time_seed
+ * where
+ *    temp [double]     :  starting temperature
+ *    init_state [int]  :  initial lattice state; 0 -> (T=0) all -1s; 1 -> (T=0) all 1s; 2 -> (T=inf) random
+ *    time_seed [int]   :  1 if time_seed is to be used, else 0 
  * 
-**/
+ */
 int main(int argc, char *argv[])
 {
     double T;
     int init_state;
 
+    /* Handle arguments */
     T = atof(argv[1]);
     init_state = atoi(argv[2]);
-    printf("T = %.2f\n", T);
+    TIME_SEED = atoi(argv[3]);
 
-    // Test initialization
+    /* Initialize lattice */
     beta = 1/T;
     initialize(init_state);
 
-    // Display lattice
+    // testing random gen
     int i;
-    for (i = 0; i < 5; i++) {
-        printf("%.5f ", prob[i]);
+    for (i = 0; i < 10; i++) {
+      long *r = gen_seed(); // not working correctly
+      printf("%.5f\n", double_ran0(r));
+      free(r);
+      
     }
-    printf("\n");
-    display_lattice();
-    sweep();
-    display_lattice();
 
     exit(1);
 
@@ -64,20 +72,21 @@ void initialize(int state)
 {
   int i;
 
-  // Precalculate probabilities
+  /* Precalculate probabilities */
   for (i = 2; i < 5; i += 2) prob[i] = exp(-2*beta*i);
 
+  /* Initialize lattice */
   switch(state) 
   {
-    case ONES:
+    case T_ZERO_POS:
       for (i = 0; i < N; i++) s[i] = 1;
       break;
 
-    case NEG_ONES:
+    case T_ZERO_NEG:
       for (i = 0; i < N; i++) s[i] = -1;
       break;
 
-    case INF:
+    case T_INF:
       s[0] = 1;
       for (i = 1; i < N; i++) s[i] = s[i-1] * -1;
       break;
@@ -94,6 +103,19 @@ void initialize(int state)
       break;
   }
   
+}
+
+long *gen_seed()
+{
+  long* r = malloc(sizeof(long));
+
+  if (TIME_SEED) {
+    *r = time(0);
+  } else {
+    *r = SEED;
+  }
+
+  return r;
 }
 
 void sweep()
