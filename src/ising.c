@@ -1,6 +1,6 @@
 /**
- * Playing around with the Ising Model
- *
+ * Ising Model
+ * Author: Annika Nel 19907281
 **/
 
 #include <stdlib.h>
@@ -20,7 +20,7 @@
 #define T_INF 2       // random initial state
 #define SEED 123123
 
-/* Functions */
+/* Prototypes */
 void initialize(int state);
 void sweep();
 void display_lattice();
