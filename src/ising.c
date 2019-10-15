@@ -18,19 +18,22 @@
 #define T_ZERO_NEG 0  // uniform 1s initial state
 #define T_ZERO_POS 1  // uniform -1s initial state
 #define T_INF 2       // random initial state
-#define SEED 123123
+#define J 1
 
 /* Functions */
-void initialize(int state);
+void initialize(int state, int time_seed);
 void sweep();
 void display_lattice();
-long *gen_seed();
+long *gen_seed(int time_seed);
 
 /* Globals */
-int TIME_SEED;    // 1 if time seed is to be used else 0
 int s[N];         // The Lattice
 double prob[5];   // Flip probability for given temperature
 double beta;      // Inverse temperature 1/kT
+int E;         // Instantaneous energy
+int M;         // Instantaneous magnetisation
+long *SEED;       // random seed
+
 
 /**
  * Main simulation loop.
@@ -44,36 +47,39 @@ double beta;      // Inverse temperature 1/kT
 int main(int argc, char *argv[])
 {
     double T;
-    int init_state;
+    int init_state, time_seed;
 
     /* Handle arguments */
     T = atof(argv[1]);
     init_state = atoi(argv[2]);
-    TIME_SEED = atoi(argv[3]);
+    time_seed = atoi(argv[3]);
+
+    printf("E,M\n");
 
     /* Initialize lattice */
     beta = 1/T;
-    initialize(init_state);
+    initialize(init_state, time_seed);
 
-    // testing random gen
+    // display_lattice();
+
     int i;
-    for (i = 0; i < 10; i++) {
-      long *r = gen_seed(); // not working correctly
-      printf("%.5f\n", double_ran0(r));
-      free(r);
-      
-    }
+    for (i = 0; i < 10; i++) sweep();
 
+    /************ end ************/
+    free(SEED);
     exit(1);
 
 }
 
-void initialize(int state)
+void initialize(int state, int time_seed)
 {
   int i;
 
   /* Precalculate probabilities */
   for (i = 2; i < 5; i += 2) prob[i] = exp(-2*beta*i);
+
+  /* Generate random seed */
+  SEED = gen_seed(time_seed);
 
   /* Initialize lattice */
   switch(state) 
@@ -87,32 +93,41 @@ void initialize(int state)
       break;
 
     case T_INF:
-      s[0] = 1;
-      for (i = 1; i < N; i++) s[i] = s[i-1] * -1;
+      for (i = 0; i < N; i++) {
+        s[i] = double_ran0(SEED) < 0.5 ? -1 : 1;
+      }
       break;
-
-      // Still need to figure out random initialization
-      // for (i = 0; i < N; i++) {
-      //   long p = clock();
-      //   s[i] = (int) ran0(&p) < 0.5;
-      // }
-      // break;
 
     default:
       for (i = 0; i < N; i++) s[i] = 1;
       break;
   }
   
+  /* Calculate initial energy */
+  int sum, nn;
+  for (i = 0; i < N; i++) {
+    if ((nn = i+XNN) >= N)   nn -= N;
+    sum = s[nn];
+    if ((nn = i+YNN) >= N)   nn -= N;
+    sum += s[nn];
+  }
+  E = -J*sum;
+
+  /* Calculate initial magnetisation */
+  M = 0;
+  for (i = 0; i < N; i++) M += s[i];
+  
+  printf("%d, %d\n", E, M);
 }
 
-long *gen_seed()
+long *gen_seed(int time_seed)
 {
   long* r = malloc(sizeof(long));
 
-  if (TIME_SEED) {
+  if (time_seed) {
     *r = time(0);
   } else {
-    *r = SEED;
+    *r = 123123;
   }
 
   return r;
@@ -121,13 +136,11 @@ long *gen_seed()
 void sweep()
 {
   int i, k, nn, sum, delta;
-  long seed;
   
   for (k = 0; k < N; k++) {
 
     /* Choose a site */
-    seed = 1234;
-    i = ran0(&seed);
+    i = (int) (N * ran0(SEED));
     
     /* Calculate the sum of the neighbouring spins */
     if ((nn = i+XNN) >= N)   nn -= N;
@@ -141,16 +154,21 @@ void sweep()
     
     /* Calculate the change in energy */
     delta = sum*s[i];
-    seed = time(0);
-    printf("%.5f\n", double_ran0(&seed)); // meep not working lekker
+
     /* Decide whether to flip the spin */
-    if (delta <= 0) {
+    if (delta <= 0 || double_ran0(SEED) <  prob[delta]) {
+      // printf("flip! %d\n", i);
       s[i] = -s[i];
-      printf("flip!\n");
-    } else if (double_ran0(&seed) <  prob[delta]) {
-      s[i] = -s[i];
-      printf("flip!\n");
+
+      /* Update energy and magnetisation */
+      E += delta;
+      M += 2*s[i];
+      
     }
+
+    printf("%d, %d\n", E, M);
+    // display_lattice();
+    
   }
 }
 
@@ -159,7 +177,7 @@ void display_lattice()
   int i, j;
   for (j = 0; j < L; j++) {
     for (i = 0; i < L; i++) {
-      printf("%d ", s[j+i]); // align!
+      printf("%2d ", s[j*L+i]);
     }
     printf("\n");
   }
