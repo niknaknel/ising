@@ -11,7 +11,7 @@
 #include "ran0.h"
 #include "double_ran0.h"
 
-#define L 5
+#define L 20
 #define N  (L*L)
 #define XNN 1
 #define YNN L
@@ -20,13 +20,8 @@
 #define T_INF 2       // random initial state
 #define J 1
 
-<<<<<<< HEAD
 /* Functions */
 void initialize(int state, int time_seed);
-=======
-/* Prototypes */
-void initialize(int state);
->>>>>>> d95e89720bfd20f6f9baac51b37564694771e274
 void sweep();
 void display_lattice();
 long *gen_seed(int time_seed);
@@ -55,6 +50,7 @@ int main(int argc, char *argv[])
     int init_state, time_seed;
 
     /* Handle arguments */
+    // TODO: insert usage prompt validation
     T = atof(argv[1]);
     init_state = atoi(argv[2]);
     time_seed = atoi(argv[3]);
@@ -68,7 +64,7 @@ int main(int argc, char *argv[])
     // display_lattice();
 
     int i;
-    for (i = 0; i < 10; i++) sweep();
+    for (i = 0; i < 50; i++) sweep();
 
     /************ end ************/
     free(SEED);
@@ -158,7 +154,7 @@ void sweep()
     sum += s[nn];
     
     /* Calculate the change in energy */
-    delta = sum*s[i];
+    delta = 2*sum*s[i];
 
     /* Decide whether to flip the spin */
     if (delta <= 0 || double_ran0(SEED) <  prob[delta]) {
