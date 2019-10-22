@@ -11,7 +11,7 @@
 #include "ran0.h"
 #include "double_ran0.h"
 
-#define L 20
+#define L 100
 #define N  (L*L)
 #define XNN 1
 #define YNN L
@@ -55,7 +55,8 @@ int main(int argc, char *argv[])
     init_state = atoi(argv[2]);
     time_seed = atoi(argv[3]);
 
-    printf("E,M\n");
+    // printf("E,M/N\n");
+    printf("Mps\n");
 
     /* Initialize lattice */
     beta = 1/T;
@@ -64,7 +65,7 @@ int main(int argc, char *argv[])
     // display_lattice();
 
     int i;
-    for (i = 0; i < 50; i++) sweep();
+    for (i = 0; i < 100; i++) sweep();
 
     /************ end ************/
     free(SEED);
@@ -118,7 +119,8 @@ void initialize(int state, int time_seed)
   M = 0;
   for (i = 0; i < N; i++) M += s[i];
   
-  printf("%d, %d\n", E, M);
+  // printf("%d, %.5f\n", E, M/(double) N);
+  printf("%.5f\n", M/(double) N);
 }
 
 long *gen_seed(int time_seed)
@@ -154,20 +156,21 @@ void sweep()
     sum += s[nn];
     
     /* Calculate the change in energy */
-    delta = 2*sum*s[i];
+    delta = sum*s[i];
 
     /* Decide whether to flip the spin */
-    if (delta <= 0 || double_ran0(SEED) <  prob[delta]) {
+    if (2*delta <= 0 || double_ran0(SEED) <  prob[delta]) {
       // printf("flip! %d\n", i);
       s[i] = -s[i];
 
       /* Update energy and magnetisation */
-      E += delta;
+      E += 2*delta;
       M += 2*s[i];
       
     }
 
-    printf("%d, %d\n", E, M);
+    // printf("%d, %.5f\n", E, M/(double) N);
+    printf("%.5f\n", M/(double) N);
     // display_lattice();
     
   }
