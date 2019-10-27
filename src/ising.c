@@ -3,187 +3,245 @@
  * Author: Annika Nel 19907281
 **/
 
-#include <stdlib.h>
-#include <stdio.h>
-#include <math.h>
-#include <time.h>
+#include "ising.h"
 
-#include "ran0.h"
-#include "double_ran0.h"
-
-#define L 100
-#define N  (L*L)
-#define XNN 1
-#define YNN L
-#define T_ZERO_NEG 0  // uniform 1s initial state
-#define T_ZERO_POS 1  // uniform -1s initial state
-#define T_INF 2       // random initial state
-#define J 1
+/* Structs */
+typedef struct {
+    int L;
+    int N;
+    int XNN;
+    int YNN;
+    int *s;
+    double T;
+    double beta;
+    double prob[5];
+    int *M;
+    int *E;
+    long *seed;
+} Lattice;
 
 /* Functions */
-void initialize(int state, int time_seed);
-void sweep();
-void display_lattice();
+void run(Lattice *lattice, double temp, int steps);
+void initialize(Lattice *lattice, double temp, int steps);
+Lattice new(int L, int state, int time_seed);
+void sweep(Lattice *lattice);
+void display_lattice(Lattice *lattice);
 long *gen_seed(int time_seed);
+////////
 
-/* Globals */
-int s[N];         // The Lattice
-double prob[5];   // Flip probability for given temperature
-double beta;      // Inverse temperature 1/kT
-int E;         // Instantaneous energy
-int M;         // Instantaneous magnetisation
-long *SEED;       // random seed
+int z = 0;
 
-
-/**
- * Main simulation loop.
- * Usage: ./ising temp init_state time_seed
- * where
- *    temp [double]     :  starting temperature
- *    init_state [int]  :  initial lattice state; 0 -> (T=0) all -1s; 1 -> (T=0) all 1s; 2 -> (T=inf) random
- *    time_seed [int]   :  1 if time_seed is to be used, else 0 
- * 
- */
 int main(int argc, char *argv[])
 {
     double T;
-    int init_state, time_seed;
+    int L, init_state, steps;
 
     /* Handle arguments */
-    // TODO: insert usage prompt validation
     T = atof(argv[1]);
     init_state = atoi(argv[2]);
-    time_seed = atoi(argv[3]);
+    L = 10;
+    steps = 100;
 
-    // printf("E,M/N\n");
+    Lattice lat = new(L, init_state, TIME_SEED);
     printf("Mps\n");
+    run(&lat, T, steps);
 
-    /* Initialize lattice */
-    beta = 1/T;
-    initialize(init_state, time_seed);
+    for (int i = 0; i < steps * lat.N + 1; i++) {
+        printf("%.5f\n", lat.M[i]/(double) lat.N);
+    }
+}
 
-    // display_lattice();
+void run(Lattice *lattice, double temp, int steps)
+{
+    int i, *E_0, *M_0;
 
-    int i;
-    for (i = 0; i < 100; i++) sweep();
+    initialize(lattice, temp, steps);
 
-    /************ end ************/
-    free(SEED);
-    exit(1);
+    /* save first position of array */
+    E_0 = lattice->E;
+    M_0 = lattice->M;
+
+    /* sweep */
+    for (i = 0; i < steps; i++) sweep(lattice);
+
+    /* Move pointer back to first position */
+    lattice->E = E_0;
+    lattice->M = M_0;
 
 }
 
-void initialize(int state, int time_seed)
+void initialize(Lattice *lattice, double temp, int steps)
 {
-  int i;
+    int i, sum, nn, N, XNN, YNN, m;
+    int *E, *M;
+    double beta;
 
-  /* Precalculate probabilities */
-  for (i = 2; i < 5; i += 2) prob[i] = exp(-2*beta*i);
+    N = lattice->N;
+    XNN = lattice->XNN;
+    YNN = lattice->YNN;
+    beta = 1/temp;
 
-  /* Generate random seed */
-  SEED = gen_seed(time_seed);
+    lattice->T = temp;
+    lattice->beta = beta;
 
-  /* Initialize lattice */
-  switch(state) 
-  {
-    case T_ZERO_POS:
-      for (i = 0; i < N; i++) s[i] = 1;
-      break;
+    /* Precalculate probabilities */
+    for (i = 2; i < 5; i += 2) lattice->prob[i] = exp(-2*beta*i);
 
-    case T_ZERO_NEG:
-      for (i = 0; i < N; i++) s[i] = -1;
-      break;
+    /* initialise M and E arrays */
+    E = malloc(sizeof(int) * steps * N);
+    M = malloc(sizeof(int) * steps * N);
 
-    case T_INF:
-      for (i = 0; i < N; i++) {
-        s[i] = double_ran0(SEED) < 0.5 ? -1 : 1;
-      }
-      break;
+    /* Calculate initial energy */
+    sum = 0;
+    for (i = 0; i < N; i++) {
+        if ((nn = i+XNN) >= N)   nn -= N;
+        sum += lattice->s[nn];
+        if ((nn = i+YNN) >= N)   nn -= N;
+        sum += lattice->s[nn];
+    }
+    E[0] = -J*sum;
 
-    default:
-      for (i = 0; i < N; i++) s[i] = 1;
-      break;
-  }
-  
-  /* Calculate initial energy */
-  int sum, nn;
-  for (i = 0; i < N; i++) {
-    if ((nn = i+XNN) >= N)   nn -= N;
-    sum = s[nn];
-    if ((nn = i+YNN) >= N)   nn -= N;
-    sum += s[nn];
-  }
-  E = -J*sum;
+    /* Calculate initial magnetisation */
+    m = 0;
+    for (i = 0; i < N; i++) m += lattice->s[i];
+    M[0] = m;
 
-  /* Calculate initial magnetisation */
-  M = 0;
-  for (i = 0; i < N; i++) M += s[i];
-  
-  // printf("%d, %.5f\n", E, M/(double) N);
-  printf("%.5f\n", M/(double) N);
+    lattice->E = E;
+    lattice->M = M;
+}
+
+Lattice new(int L, int state, int time_seed)
+{
+    int i, N;
+    int *s;
+
+    Lattice lattice;
+    N = L*L;
+    s = malloc(sizeof(int) * N);
+
+    /* initialise basics */
+    lattice.L = L;
+    lattice.N = N;
+    lattice.XNN = 1;
+    lattice.YNN = L;
+
+    /* Generate random seed */
+    lattice.seed = gen_seed(time_seed);
+
+    /* Initialize lattice */
+    switch(state)
+    {
+        case T_ZERO_POS:
+            for (i = 0; i < N; i++) s[i] = 1;
+            break;
+
+        case T_ZERO_NEG:
+            for (i = 0; i < N; i++) s[i] = -1;
+            break;
+
+        case T_INF:
+            for (i = 0; i < N; i++) {
+                s[i] = double_ran0(lattice.seed) < 0.5 ? -1 : 1;
+            }
+            break;
+
+        default:
+            for (i = 0; i < N; i++) s[i] = 1;
+            break;
+    }
+
+    lattice.s = s;
+
+    return lattice;
+
+}
+
+void sweep(Lattice *lattice)
+{
+    int i, k, nn, sum, delta, N, XNN, YNN, E_old, M_old;
+    int *s, *E, *M;
+    double *prob;
+    long *SEED;
+
+    // get values from lattice
+    N = lattice->N;
+    XNN = lattice->XNN;
+    YNN = lattice->YNN;
+    s = lattice->s;
+    E = lattice->E;
+    M = lattice->M;
+    prob = lattice->prob;
+    SEED = lattice->seed;
+
+    // run N flip attempts
+    for (k = 0; k < N; k++) {
+        // save current M & E and increment pointer
+        E_old = *E;
+        E++;
+        M_old = *M;
+        M++;
+        z++;
+
+        /* Choose a site */
+        i = (int) (N * ran0(SEED));
+
+        /* Calculate the sum of the neighbouring spins */
+        if ((nn = i+XNN) >= N)   nn -= N;
+        sum = s[nn];
+        if ((nn = i-XNN) <  0)   nn += N;
+        sum += s[nn];
+        if ((nn = i+YNN) >= N)   nn -= N;
+        sum += s[nn];
+        if ((nn = i-YNN) <  0)   nn += N;
+        sum += s[nn];
+
+        /* Calculate the change in energy */
+        delta = sum * s[i];
+
+        /* Decide whether to flip the spin */
+        if (2*delta <= 0 || double_ran0(SEED) <  prob[delta]) {
+            // printf("flip! %d\n", i);
+            s[i] = -s[i];
+
+            /* Update energy and magnetisation */
+            *E = E_old + 2*delta;
+            *M = M_old + 2*s[i];
+
+        } else {
+            *E = E_old;
+            *M = M_old;
+        }
+    }
+
+    /* move pointers */
+    lattice->E = E;
+    lattice->M = M;
+}
+
+void display_lattice(Lattice *lattice)
+{
+    int i, j, k;
+
+    for (j = 0; j < lattice->L; j++) {
+        for (i = 0; i < lattice->L; i++) {
+            k = (j * lattice->L) + i;
+            printf("%2d ", lattice->s[k]);
+        }
+        printf("\n");
+    }
+    printf("\n");
+
 }
 
 long *gen_seed(int time_seed)
 {
-  long* r = malloc(sizeof(long));
+    long* r = malloc(sizeof(long));
 
-  if (time_seed) {
-    *r = time(0);
-  } else {
-    *r = 123123;
-  }
-
-  return r;
-}
-
-void sweep()
-{
-  int i, k, nn, sum, delta;
-  
-  for (k = 0; k < N; k++) {
-
-    /* Choose a site */
-    i = (int) (N * ran0(SEED));
-    
-    /* Calculate the sum of the neighbouring spins */
-    if ((nn = i+XNN) >= N)   nn -= N;
-    sum = s[nn];
-    if ((nn = i-XNN) <  0)   nn += N;
-    sum += s[nn];
-    if ((nn = i+YNN) >= N)   nn -= N;
-    sum += s[nn];
-    if ((nn = i-YNN) <  0)   nn += N;
-    sum += s[nn];
-    
-    /* Calculate the change in energy */
-    delta = sum*s[i];
-
-    /* Decide whether to flip the spin */
-    if (2*delta <= 0 || double_ran0(SEED) <  prob[delta]) {
-      // printf("flip! %d\n", i);
-      s[i] = -s[i];
-
-      /* Update energy and magnetisation */
-      E += 2*delta;
-      M += 2*s[i];
-      
+    if (time_seed) {
+        *r = time(0);
+    } else {
+        *r = 123123;
     }
 
-    // printf("%d, %.5f\n", E, M/(double) N);
-    printf("%.5f\n", M/(double) N);
-    // display_lattice();
-    
-  }
-}
-
-void display_lattice()
-{
-  int i, j;
-  for (j = 0; j < L; j++) {
-    for (i = 0; i < L; i++) {
-      printf("%2d ", s[j*L+i]);
-    }
-    printf("\n");
-  }
-  printf("\n");
+    return r;
 }
