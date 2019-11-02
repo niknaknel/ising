@@ -3,29 +3,28 @@ subdir=$1
 make
 mkdir -p ${subdir}
 
-# T=0, var init, time_seed=true
-./ising 1.5 0 1 > "${subdir}/out_001_0.csv"
-./ising 1.5 1 1 > "${subdir}/out_011_0.csv"
-./ising 1.5 2 1 > "${subdir}/out_021_0.csv"
-
-# T=1, var init, time_seed=true
-./ising 1.8 0 1 > "${subdir}/out_101_0.csv"
-./ising 1.8 1 1 > "${subdir}/out_111_0.csv"
-./ising 1.8 2 1 > "${subdir}/out_121_0.csv"
-
-# T=2, var init, time_seed=true
-./ising 2 0 1 > "${subdir}/out_201_0.csv"
-./ising 2 1 1 > "${subdir}/out_211_0.csv"
-./ising 2 2 1 > "${subdir}/out_221_0.csv"
-
-# T=3, var init, time_seed=true
-./ising 2.3 0 1 > "${subdir}/out_301_0.csv"
-./ising 2.3 1 1 > "${subdir}/out_311_0.csv"
-./ising 2.3 2 1 > "${subdir}/out_321_0.csv"
-
-# T=4, var init, time_seed=true
-./ising 2.8 0 1 > "${subdir}/out_401_0.csv"
-./ising 2.8 1 1 > "${subdir}/out_411_0.csv"
-./ising 2.8 2 1 > "${subdir}/out_421_0.csv"
-
-Rscript ising_plots.R ${subdir}
+./ising 0.2 > "${subdir}/t02.csv"
+./ising 0.4 > "${subdir}/t04.csv"
+./ising 0.6 > "${subdir}/t06.csv"
+./ising 0.8 > "${subdir}/t08.csv"
+./ising 1.0 > "${subdir}/t10.csv"
+./ising 1.2 > "${subdir}/t12.csv"
+./ising 1.4 > "${subdir}/t14.csv"
+./ising 1.6 > "${subdir}/t16.csv"
+./ising 1.8 > "${subdir}/t18.csv"
+./ising 2.0 > "${subdir}/t20.csv"
+./ising 2.2 > "${subdir}/t22.csv"
+./ising 2.4 > "${subdir}/t24.csv"
+./ising 2.6 > "${subdir}/t26.csv"
+./ising 2.8 > "${subdir}/t28.csv"
+./ising 3.0 > "${subdir}/t30.csv"
+./ising 3.2 > "${subdir}/t32.csv"
+./ising 3.4 > "${subdir}/t34.csv"
+./ising 3.6 > "${subdir}/t36.csv"
+./ising 3.8 > "${subdir}/t38.csv"
+./ising 4.0 > "${subdir}/t40.csv"
+./ising 4.2 > "${subdir}/t42.csv"
+./ising 4.4 > "${subdir}/t44.csv"
+./ising 4.6 > "${subdir}/t46.csv"
+./ising 4.8 > "${subdir}/t48.csv"
+./ising 5.0 > "${subdir}/t50.csv"

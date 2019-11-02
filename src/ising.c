@@ -21,34 +21,85 @@ typedef struct {
 } Lattice;
 
 /* Functions */
+int find_Teq(int L, double temp);
 void run(Lattice *lattice, double temp, int steps);
 void initialize(Lattice *lattice, double temp, int steps);
 Lattice new(int L, int state, int time_seed);
 void sweep(Lattice *lattice);
 void display_lattice(Lattice *lattice);
 long *gen_seed(int time_seed);
+
+/* Test Functions */
+void phase_diagram();
 ////////
 
 int z = 0;
 
 int main(int argc, char *argv[])
 {
-    double T;
-    int L, init_state, steps;
-
-    /* Handle arguments */
+    double T, elapsed;
+    clock_t t0, t1;
     T = atof(argv[1]);
-    init_state = atoi(argv[2]);
-    L = 10;
-    steps = 100;
 
-    Lattice lat = new(L, init_state, TIME_SEED);
-    printf("Mps\n");
-    run(&lat, T, steps);
+//    t0 = clock();
+    int t_eq = find_Teq(100, T);
+//    t1 = clock();
 
-    for (int i = 0; i < steps * lat.N + 1; i++) {
-        printf("%.5f\n", lat.M[i]/(double) lat.N);
+//    elapsed += (double)(t1 - t0) / CLOCKS_PER_SEC;
+
+//    printf("time elapsed: %f\n", elapsed);
+    printf("%.1f,%d\n", T, t_eq);
+}
+
+void phase_diagram()
+{
+    FILE * fp;
+    int i;
+    fp = fopen ("./out/test01.csv","w");
+
+    for(i = 0; i < 25;i++){
+        fprintf (fp, "This is line %d\n",i + 1);
     }
+
+    /* close the file*/
+    fclose (fp);
+}
+
+int find_Teq(int L, double temp)
+{
+    int steps, t_eq, t_max, diff_count;
+    double diff;
+    Lattice lat1, lat2;
+    steps = 1000;
+    t_max = steps * L * L;
+
+    lat1 = new(L, T_ZERO_POS, TIME_SEED);
+    lat2 = new(L, T_INF, TIME_SEED);
+    run(&lat1, temp, steps);
+    run(&lat2, temp, steps);
+
+//    printf("M1,M2\n");
+
+    diff_count = 0;
+    t_eq = 0;
+
+    while ((t_eq < t_max) & (diff_count < 5)) {
+
+//        printf("%.5f,%.5f\n", lat1.M[t_eq]/(double) lat1.N, lat2.M[t_eq]/(double) lat2.N);
+
+        diff = abs(lat2.M[t_eq] - lat1.M[t_eq]) / (double) lat1.N;
+
+        if (diff < THRESHOLD) {
+            diff_count++;
+        } else {
+            diff_count = 0;
+        }
+
+        t_eq++;
+    }
+
+    return t_eq;
+
 }
 
 void run(Lattice *lattice, double temp, int steps)

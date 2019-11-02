@@ -5,7 +5,7 @@
 COMPILER ?= $(GCC_PATH)gcc
 
 DEBUG ?= -DDEBUG
-FLAGS ?= $(DEBUG) -O2 -Wall -Wno-variadic-macros -pedantic -g $(GCC_SUPPFLAGS)
+FLAGS ?= $(DEBUG) -fopenmp -O2 -Wall -Wno-variadic-macros -pedantic -g $(GCC_SUPPFLAGS)
 
 LDFLAGS ?= -g
 LDLIBS = -lm

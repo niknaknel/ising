@@ -11,6 +11,8 @@
 #define T_ZERO_POS 1  // uniform -1s initial state
 #define T_INF 2       // random initial state
 #define J 1
+#define Tc 2.2        // Critical temperature
+#define THRESHOLD 0.1
 #define STATIC_SEED 0
 #define TIME_SEED 1
 
