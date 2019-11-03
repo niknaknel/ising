@@ -12,9 +12,11 @@
 #define T_INF 2       // random initial state
 #define J 1
 #define Tc 2.2        // Critical temperature
-#define THRESHOLD 0.1
+#define THRESHOLD 0.2
 #define STATIC_SEED 0
 #define TIME_SEED 1
+#define TYPE_INT 0
+#define TYPE_DOUBLE 1
 
 #include <stdlib.h>
 #include <stdio.h>
