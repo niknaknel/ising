@@ -63,8 +63,9 @@ void free_lattice(Lattice *lattice);
 /* Output Functions */
 Tuple sample_magnetization(int L, double temp, int try);
 void phase_diagram();
+void autocorrelation();
 int corr_hack(double temp);
-int correlation_time(double *Mps, int t_eq, int t_max);
-double chi(int t, double *Mps, int t_max);
+int correlation_time(int *M, int t_eq, int t_max);
+double chi(int t, int *M, int t_max);
 int equilibration_time(int L, double temp);
 void test();

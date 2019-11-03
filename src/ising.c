@@ -24,13 +24,13 @@ void test()
     int t_eq, t_max, tries, *M, L;
     double T;
 
-    t_max = 1000;
+    t_max = 5000;
     t_eq = t_max;
-    T = 1.2;
+    T = 2.6;
     L = 50;
     tries = 0;
 
-    Lattice lat = new(L, T_INF, TIME_SEED);
+    Lattice lat = new(L, T_ZERO_POS, TIME_SEED);
     run(&lat, T, t_max);
 
     while ((t_eq >= t_max) & (tries < 5)) {
@@ -41,13 +41,46 @@ void test()
     if (tries >= 5) {
         printf("Couldn't find equilibrium!\n");
     } else {
-        int t_corr = correlation_time(lat.Mps, t_eq, t_max);
+        int t_corr = correlation_time(lat.M, t_eq, t_max);
         printf("tau=%d\n", t_corr);
     }
 
 //    free(M);
 
 }
+
+void autocorrelation()
+{
+    FILE * fp;
+    int i, L;
+    double T, pop_mean;
+
+    L = 100;
+    fp = fopen ("./out/tau.csv","w");
+    fprintf(fp, "T,tau\n");
+
+    for (T = 0.2; T < 5.2; T+=0.2) {
+        printf("T = %.2f: ", T);
+        pop_mean = 0;
+
+        #pragma omp parallel for shared(pop_mean)
+        for (i = 0; i < 10; i++) {
+            printf("%d, ", i+1);
+            int t_eq = equilibration_time(L, T);
+            int t_max = t_eq*2;
+            Lattice lat = new(L, T_ZERO_POS, TIME_SEED);
+            run(&lat, T, t_max);
+            int tau = correlation_time(lat.M, t_eq, t_max);
+            #pragma omp atomic
+            pop_mean += tau / 10.0;
+        }
+        printf("\n");
+        fprintf(fp, "%.1f, %.5f\n", T, pop_mean);
+    }
+
+    fclose(fp);
+}
+
 
 void phase_diagram()
 {
@@ -77,7 +110,6 @@ void phase_diagram()
     }
 
     fclose(fp);
-    free(fp);
 }
 
 Tuple sample_magnetization(int L, double temp, int try)
@@ -95,10 +127,10 @@ Tuple sample_magnetization(int L, double temp, int try)
     t_eq = equilibration_time(L ,temp);
 
     // find correlation time
-//    t_max = (int) 1.5 * t_eq;
+    t_max = (int) 2 * t_eq;
     lat = new(L, T_ZERO_POS, TIME_SEED);
-//    run(&lat, temp, t_max); // run for correlation
-    t_corr = corr_hack(temp);
+    run(&lat, temp, t_max); // run for correlation
+    t_corr = correlation_time(lat.M, t_eq, t_max);
 
     // rerun simulation with new max time
     t_max_nu = t_eq + 2*n*t_corr;
@@ -142,63 +174,86 @@ int corr_hack(double temp)
     return corr[i];
 }
 
-int correlation_time(double *Mps, int t_eq, int t_max)
+int correlation_time(int *M, int t_eq, int t_max)
 {
     int i, tau, t_shift_max;
-    double *M_eq, *X, xnorm;
+    double *X, xnorm;
     FILE * fp;
 
     t_shift_max = t_max - t_eq;
-    printf("teq: %d = %f, tmax: %d\n", t_eq, Mps[t_eq], t_max);
-    M_eq = &Mps[t_eq];
+//    printf("teq: %d = %f, tmax: %d\n", t_eq, M[t_eq], t_max);
 
     X = malloc(sizeof(double) * t_shift_max);
 
-    X[0] = chi(0, M_eq, t_shift_max);
+    X[0] = chi(0, &M[t_eq], t_shift_max);
 
     for (i = 0; i < t_shift_max; i++) {
-        X[i] = chi(i, M_eq, t_shift_max);
+        X[i] = chi(i, &M[t_eq], t_shift_max);
     }
 
-    fp = fopen ("./out/chi.csv","w");
-    for (i = 0; i < t_shift_max; i++) {
-        xnorm = X[i]/X[0];
-        fprintf (fp, "%.5f\n", xnorm);
-    }
-    fclose (fp);
+//    fp = fopen ("./out/chi.csv","w");
+//    for (i = 0; i < 300; i++) {
+//        xnorm = X[i]/X[0];
+//        fprintf (fp, "%.5f\n", xnorm);
+//    }
+//    fclose (fp);
 
     tau = 0;
-    printf("x0/x0 = %f\n", X[1]/X[0]);
+//    printf("x0/x0 = %f\n", X[1]/X[0]);
     while ((X[tau]/X[0] > 1/M_E) & (tau < t_shift_max)) {
         tau++;
     }
 
     // free malloc'd variables
     free(X);
-//    free(M_eq);
-    free(fp);
 
     return tau;
 
 }
 
-double chi(int t, double *Mps, int t_max)
+//double chi(int t, double *Mps, int t_max)
+//{
+//    double coeff, chi, sum1, sum2, sum3;
+//    int tp;
+//
+//    // WORKED WHEN WAS JUST (t_max - t) for total M?????
+//    coeff = 1.0 / (t_max - t);
+//
+//    // calculate first term
+//    sum1 = 0, sum2 = 0, sum3 = 0;
+//    for (tp = 0; tp < t_max - t; tp++) {
+//        sum1 += Mps[tp] * Mps[tp + t];
+//        sum2 += Mps[tp];
+//        sum3 += Mps[tp + t];
+//    }
+//
+//    chi = coeff*sum1 - coeff*sum2*coeff*sum3;
+//    printf("Mps[%d] = %.5f, t_max=%d, coeff=%f, chi=%f\n", t, Mps[t], t_max, coeff, chi);
+//    printf("sum1 = %f, sum2 = %f, sum3 = %f\n", sum1, sum2, sum3);
+//
+//    return chi;
+//}
+
+double chi(int t, int *M, int t_max)
 {
     double coeff, chi, sum1, sum2, sum3;
     int tp;
 
     // WORKED WHEN WAS JUST (t_max - t) for total M?????
-    coeff = 1 / (double) (t_max - t);
+    coeff = 1.0 / (t_max - t);
 
     // calculate first term
     sum1 = 0, sum2 = 0, sum3 = 0;
-    for (tp = 0; tp <= t_max - t; tp++) {
-        sum1 += Mps[tp] * Mps[tp + t];
-        sum2 += Mps[tp];
-        sum3 += Mps[tp + t];
+    for (tp = 0; tp < t_max - t; tp++) {
+        sum1 += M[tp] * M[tp + t];
+        sum2 += M[tp];
+        sum3 += M[tp + t];
     }
 
     chi = coeff*sum1 - coeff*sum2*coeff*sum3;
+//    printf("Mps[%d] = %.5f, t_max=%d, coeff=%f, chi=%f\n", t, M[t], t_max, coeff, chi);
+//    printf("sum1 = %f, sum2 = %f, sum3 = %f\n", sum1, sum2, sum3);
+
     return chi;
 }
 
@@ -368,6 +423,9 @@ Lattice new(int L, int state, int time_seed)
     lattice.N = N;
     lattice.XNN = 1;
     lattice.YNN = L;
+    lattice.M = NULL;
+    lattice.E = NULL;
+    lattice.Mps = NULL;
 
     /* Generate random seed */
     lattice.seed = gen_seed(time_seed);

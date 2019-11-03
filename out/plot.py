@@ -4,14 +4,14 @@ import sys
 
 # read file
 fname = sys.argv[1]
-data = pd.read_csv(fname, names=['X(t)/X(0)'])
+data = pd.read_csv(fname)
 
 # plot data
-plot = data.plot.line(title="Autocorrelation")
+plot = data.plot.line(x ='T', y='tau', style = '-o', title="Autocorrelation at different temperatures.")
 fig = plot.get_figure()
-plt.xlabel('Time steps')
-plt.ylabel('X(t)/X(0)')
-#plt.ylim([-0.5, 1.5])
+plt.xlabel('Temperature')
+plt.ylabel('Autocorrelation time')
+#plt.ylim([-0.2, 1.2])
 plt.grid()
 plt.show()
 fig.savefig(fname[:-4] + ".png")
