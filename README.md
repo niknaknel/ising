@@ -1,2 +1,2 @@
-# phys344
+# ising
 Physics 344 - Ising Model
