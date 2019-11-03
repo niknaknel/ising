@@ -12,7 +12,7 @@
 #define T_INF 2       // random initial state
 #define J 1
 #define Tc 2.2        // Critical temperature
-#define THRESHOLD 0.2
+#define THRESHOLD 0.1
 #define STATIC_SEED 0
 #define TIME_SEED 1
 #define TYPE_INT 0
@@ -23,6 +23,48 @@
 #include <math.h>
 #include <time.h>
 #include <unistd.h>
+#include <limits.h>
 
 #include "ran0.h"
 #include "double_ran0.h"
+
+/* Structs */
+typedef struct {
+    int L;
+    int N;
+    int XNN;
+    int YNN;
+    int *s;
+    double T;
+    double beta;
+    double prob[5];
+    int *M;
+    int *E;
+    double *Mps;
+    long *seed;
+} Lattice;
+
+typedef struct {
+    double mean;
+    double stddev;
+} Tuple;
+
+/* Utility Functions */
+void write_result(char *file_name, double *M, int t_max);
+double *read_result(char *file_name, int t_max);
+void run(Lattice *lattice, double temp, int t_max);
+void initialize(Lattice *lattice, double temp, int t_max);
+Lattice new(int L, int state, int time_seed);
+void sweep(Lattice *lattice);
+void display_lattice(Lattice *lattice);
+long *gen_seed(int time_seed);
+void free_lattice(Lattice *lattice);
+
+/* Output Functions */
+Tuple sample_magnetization(int L, double temp, int try);
+void phase_diagram();
+int corr_hack(double temp);
+int correlation_time(double *Mps, int t_eq, int t_max);
+double chi(int t, double *Mps, int t_max);
+int equilibration_time(int L, double temp);
+void test();
