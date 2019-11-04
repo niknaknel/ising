@@ -1,10 +1,10 @@
-//
-// Created by annika on 2019/10/27.
-//
+/**
+ * Ising Header
+ * Author: Annika Nel 19907281
+**/
 
 #ifndef PHYS344_ISING_H
 #define PHYS344_ISING_H
-
 #endif //PHYS344_ISING_H
 
 #define T_ZERO_NEG 0  // uniform 1s initial state
@@ -12,12 +12,16 @@
 #define T_INF 2       // random initial state
 #define J 1
 #define Tc 2.2        // Critical temperature
-#define THRESHOLD 0.1
 #define STATIC_SEED 0
 #define TIME_SEED 1
 #define TYPE_INT 0
 #define TYPE_DOUBLE 1
 #define N_SAMPLES 10.0
+#define T_MAX 10000
+#define THRESHOLD 0.1
+#define DIFF_MAX 50
+#define TRUE 1
+#define FALSE 0
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -60,14 +64,16 @@ void sweep(Lattice *lat);
 void display_lattice(Lattice *lat);
 long *gen_seed(int time_seed);
 void free_lattice(Lattice *lat);
+void copy_lattice(Lattice *new, Lattice *lat);
 
 /* Output Functions */
-void plot_specific_heat();
-void phase_diagram();
-void autocorrelation();
-Tuple sample_magnetization(int L, double temp, int try);
-int correlation_time(int *M, int t_eq, int t_max);
+void plot_specific_heat(int L);
+void phase_diagram(int L);
+void autocorrelation(int L);
+Tuple sample_magnetization(int L, double temp);
+int correlation_time(int *M, int t_eq, int t_max, int write_out);
 double chi(int t, int *M, int t_max);
-int equilibration_time(int L, double temp);
+int equilibration_time(Lattice *lat, int L, double temp);
 double specific_heat(Lattice *lat, int t_eq, int t_corr);
+void write_spins(int L, double temp, int init_state);
 void test();
