@@ -17,6 +17,7 @@
 #define TIME_SEED 1
 #define TYPE_INT 0
 #define TYPE_DOUBLE 1
+#define N_SAMPLES 10.0
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -52,20 +53,21 @@ typedef struct {
 /* Utility Functions */
 void write_result(char *file_name, double *M, int t_max);
 double *read_result(char *file_name, int t_max);
-void run(Lattice *lattice, double temp, int t_max);
-void initialize(Lattice *lattice, double temp, int t_max);
+void run(Lattice *lat, double temp, int t_max);
+void initialize(Lattice *lat, double temp, int t_max);
 Lattice new(int L, int state, int time_seed);
-void sweep(Lattice *lattice);
-void display_lattice(Lattice *lattice);
+void sweep(Lattice *lat);
+void display_lattice(Lattice *lat);
 long *gen_seed(int time_seed);
-void free_lattice(Lattice *lattice);
+void free_lattice(Lattice *lat);
 
 /* Output Functions */
-Tuple sample_magnetization(int L, double temp, int try);
+void plot_specific_heat();
 void phase_diagram();
 void autocorrelation();
-int corr_hack(double temp);
+Tuple sample_magnetization(int L, double temp, int try);
 int correlation_time(int *M, int t_eq, int t_max);
 double chi(int t, int *M, int t_max);
 int equilibration_time(int L, double temp);
+double specific_heat(Lattice *lat, int t_eq, int t_corr);
 void test();

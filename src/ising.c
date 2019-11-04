@@ -12,7 +12,6 @@ int main(int argc, char *argv[])
 
     t0 = clock();
     phase_diagram();
-
     t1 = clock();
 
     elapsed = (double)(t1 - t0) / CLOCKS_PER_SEC;
@@ -45,8 +44,50 @@ void test()
         printf("tau=%d\n", t_corr);
     }
 
-//    free(M);
+}
 
+void plot_specific_heat()
+{
+    FILE * fp;
+    int i, L;
+    double T, pop_mean;
+
+    L = 100;
+    fp = fopen ("./out/specific_heat.csv","w");
+    fprintf(fp, "T,Cv\n");
+
+    for (T = 0.2; T < 5.2; T+=0.2) {
+        printf("T = %.2f: ", T);
+        pop_mean = 0;
+
+        #pragma omp parallel for shared(pop_mean)
+        for (i = 0; i < 10; i++) {
+            printf("%d, ", i+1);
+
+            int t_eq, t_max, t_corr;
+            double Cv;
+            Lattice lat;
+
+            t_eq = equilibration_time(L, T);
+            t_max = t_eq*2;
+
+            lat = new(L, T_ZERO_POS, TIME_SEED);
+            run(&lat, T, t_max);
+
+            t_corr = correlation_time(lat.M, t_eq, t_max);
+
+            if (t_eq + N_SAMPLES*t_corr > t_max) run(&lat, T, t_eq + N_SAMPLES*t_corr);
+
+            Cv = specific_heat(&lat, t_eq, t_corr);
+
+            #pragma omp atomic
+            pop_mean += Cv / 10.0;
+        }
+        printf("\n");
+        fprintf(fp, "%.1f, %.5f\n", T, pop_mean);
+    }
+
+    fclose(fp);
 }
 
 void autocorrelation()
@@ -89,7 +130,7 @@ void phase_diagram()
     double T, pop_mean;
     Tuple stats;
 
-    L = 50;
+    L = 100;
     fp = fopen ("./out/phase/0mag_sample1.csv","w");
     fprintf(fp, "T,Mps\n");
 
@@ -114,14 +155,13 @@ void phase_diagram()
 
 Tuple sample_magnetization(int L, double temp, int try)
 {
-    int i, n, t_max, t_max_nu, t_eq, t_corr;
+    int i, t_max, t_max_nu, t_eq, t_corr;
     double mean, var, *M_sample;
     Lattice lat;
     Tuple stats;
 
     // initialize constants
-    n = 10;
-    M_sample = malloc(sizeof(double) * n);
+    M_sample = malloc(sizeof(double) * N_SAMPLES);
 
     // find equilibration time
     t_eq = equilibration_time(L ,temp);
@@ -133,17 +173,17 @@ Tuple sample_magnetization(int L, double temp, int try)
     t_corr = correlation_time(lat.M, t_eq, t_max);
 
     // rerun simulation with new max time
-    t_max_nu = t_eq + 2*n*t_corr;
+    t_max_nu = t_eq + 2*N_SAMPLES*t_corr;
     run(&lat, temp, t_max_nu);
 
     // sample magnetization and calculate mean and variance
-    for (i = 0; i < n; i++) {
+    for (i = 0; i < N_SAMPLES; i++) {
         M_sample[i] = lat.M[t_eq + i*t_corr] / (double) lat.N;
     }
 
     mean = 0, var = 0;
-    for (i = 0; i < n; i++) mean += M_sample[i]/n;
-    for (i = 0; i < n; i++) var += pow(M_sample[i] - mean, 2)/n;
+    for (i = 0; i < N_SAMPLES; i++) mean += M_sample[i]/N_SAMPLES;
+    for (i = 0; i < N_SAMPLES; i++) var += pow(M_sample[i] - mean, 2)/(N_SAMPLES-1); // sample variance vs population variance ???
     stats.mean = (temp < Tc) ? fabs(mean) : mean;
     stats.stddev = sqrt(var);
 
@@ -157,23 +197,6 @@ Tuple sample_magnetization(int L, double temp, int try)
     return stats;
 }
 
-int corr_hack(double temp)
-{
-    int i;
-    double T;
-    int corr[] = {1, 0, 0, 0, 0, 0, 2, 3, 5, 12, 130, 95, 50, 12, 10, 6, 5, 4, 3, 3, 3, 1, 2, 1, 0};
-
-    i = 0;
-    for (T = 0.2; T <= 5.0; T+=0.2) {
-        if (T == temp) {
-            break;
-        }
-        i++;
-    }
-
-    return corr[i];
-}
-
 int correlation_time(int *M, int t_eq, int t_max)
 {
     int i, tau, t_shift_max;
@@ -181,8 +204,6 @@ int correlation_time(int *M, int t_eq, int t_max)
     FILE * fp;
 
     t_shift_max = t_max - t_eq;
-//    printf("teq: %d = %f, tmax: %d\n", t_eq, M[t_eq], t_max);
-
     X = malloc(sizeof(double) * t_shift_max);
 
     X[0] = chi(0, &M[t_eq], t_shift_max);
@@ -191,55 +212,30 @@ int correlation_time(int *M, int t_eq, int t_max)
         X[i] = chi(i, &M[t_eq], t_shift_max);
     }
 
-//    fp = fopen ("./out/chi.csv","w");
-//    for (i = 0; i < 300; i++) {
+    tau = 0;
+    while ((X[tau]/X[0] > 1/M_E) & (tau < t_shift_max)) {
+        tau++;
+    }
+
+    /* write to file */
+    //    fp = fopen ("./out/chi.csv","w");
+//    for (i = 0; i < 250 ; i++) {
 //        xnorm = X[i]/X[0];
 //        fprintf (fp, "%.5f\n", xnorm);
 //    }
 //    fclose (fp);
 
-    tau = 0;
-//    printf("x0/x0 = %f\n", X[1]/X[0]);
-    while ((X[tau]/X[0] > 1/M_E) & (tau < t_shift_max)) {
-        tau++;
-    }
-
     // free malloc'd variables
     free(X);
 
     return tau;
-
 }
-
-//double chi(int t, double *Mps, int t_max)
-//{
-//    double coeff, chi, sum1, sum2, sum3;
-//    int tp;
-//
-//    // WORKED WHEN WAS JUST (t_max - t) for total M?????
-//    coeff = 1.0 / (t_max - t);
-//
-//    // calculate first term
-//    sum1 = 0, sum2 = 0, sum3 = 0;
-//    for (tp = 0; tp < t_max - t; tp++) {
-//        sum1 += Mps[tp] * Mps[tp + t];
-//        sum2 += Mps[tp];
-//        sum3 += Mps[tp + t];
-//    }
-//
-//    chi = coeff*sum1 - coeff*sum2*coeff*sum3;
-//    printf("Mps[%d] = %.5f, t_max=%d, coeff=%f, chi=%f\n", t, Mps[t], t_max, coeff, chi);
-//    printf("sum1 = %f, sum2 = %f, sum3 = %f\n", sum1, sum2, sum3);
-//
-//    return chi;
-//}
 
 double chi(int t, int *M, int t_max)
 {
     double coeff, chi, sum1, sum2, sum3;
     int tp;
 
-    // WORKED WHEN WAS JUST (t_max - t) for total M?????
     coeff = 1.0 / (t_max - t);
 
     // calculate first term
@@ -251,8 +247,6 @@ double chi(int t, int *M, int t_max)
     }
 
     chi = coeff*sum1 - coeff*sum2*coeff*sum3;
-//    printf("Mps[%d] = %.5f, t_max=%d, coeff=%f, chi=%f\n", t, M[t], t_max, coeff, chi);
-//    printf("sum1 = %f, sum2 = %f, sum3 = %f\n", sum1, sum2, sum3);
 
     return chi;
 }
@@ -295,7 +289,25 @@ int equilibration_time(int L, double temp)
     free_lattice(&lat2);
 
     return t_eq;
+}
 
+double specific_heat(Lattice *lat, int t_eq, int t_corr)
+{
+    int i;
+    double mean, var, Cv;
+
+    mean = 0, var = 0;
+
+    /* calculate mean */
+    for (i = 0; i < N_SAMPLES; i++) mean += lat->E[t_eq + i*t_corr]/N_SAMPLES;
+
+    /* calculate variance */
+    for (i = 0; i < N_SAMPLES; i++) var += pow(lat->E[t_eq + i*t_corr] - mean, 2) / (N_SAMPLES-1); // sample vs population?
+
+    Cv = (lat->beta / lat->T) * var;
+    Cv = Cv / (lat->N); // per site
+
+    return Cv;
 }
 
 void write_result(char *file_name, double *M, int t_max)
@@ -336,53 +348,53 @@ double *read_result(char *file_name, int t_max)
     return M;
 }
 
-void run(Lattice *lattice, double temp, int t_max)
+void run(Lattice *lat, double temp, int t_max)
 {
     int i, *E_0, *M_0;
     double *Mps;
 
-    initialize(lattice, temp, t_max);
+    initialize(lat, temp, t_max);
 
     /* save first position of array */
-    E_0 = lattice->E;
-    M_0 = lattice->M;
+    E_0 = lat->E;
+    M_0 = lat->M;
 
     /* sweep */
-    for (i = 0; i < t_max; i++) sweep(lattice);
+    for (i = 0; i < t_max; i++) sweep(lat);
 
     /* Move pointer back to first position */
-    lattice->E = E_0;
-    lattice->M = M_0;
+    lat->E = E_0;
+    lat->M = M_0;
 
     /* Find M per site and save to struct */
     Mps = malloc(sizeof(double) * t_max);
-    for (i = 0; i < t_max; i++) Mps[i] = lattice->M[i] / (double) lattice->N;
+    for (i = 0; i < t_max; i++) Mps[i] = lat->M[i] / (double) lat->N;
 
-    lattice->Mps = Mps;
+    lat->Mps = Mps;
 
 }
 
-void initialize(Lattice *lattice, double temp, int t_max)
+void initialize(Lattice *lat, double temp, int t_max)
 {
     int i, sum, nn, N, XNN, YNN, m;
     int *E, *M;
     double beta;
 
     // free lattice if 2nd + call to run
-    if (lattice->M != NULL) free(lattice->M);
-    if (lattice->Mps != NULL) free(lattice->Mps);
-    if (lattice->E != NULL) free(lattice->E);
+    if (lat->M != NULL) free(lat->M);
+    if (lat->Mps != NULL) free(lat->Mps);
+    if (lat->E != NULL) free(lat->E);
 
-    N = lattice->N;
-    XNN = lattice->XNN;
-    YNN = lattice->YNN;
+    N = lat->N;
+    XNN = lat->XNN;
+    YNN = lat->YNN;
     beta = 1/temp;
 
-    lattice->T = temp;
-    lattice->beta = beta;
+    lat->T = temp;
+    lat->beta = beta;
 
     /* Precalculate probabilities */
-    for (i = 2; i < 5; i += 2) lattice->prob[i] = exp(-2*beta*i);
+    for (i = 2; i < 5; i += 2) lat->prob[i] = exp(-2*beta*i);
 
     /* initialise M and E arrays */
     E = malloc(sizeof(int) * (t_max+1));
@@ -394,19 +406,19 @@ void initialize(Lattice *lattice, double temp, int t_max)
     sum = 0;
     for (i = 0; i < N; i++) {
         if ((nn = i+XNN) >= N)   nn -= N;
-        sum += lattice->s[nn];
+        sum += lat->s[nn];
         if ((nn = i+YNN) >= N)   nn -= N;
-        sum += lattice->s[nn];
+        sum += lat->s[nn];
     }
     E[0] = -J*sum;
 
     /* Calculate initial magnetisation */
     m = 0;
-    for (i = 0; i < N; i++) m += lattice->s[i];
+    for (i = 0; i < N; i++) m += lat->s[i];
     M[0] = m;
 
-    lattice->E = E;
-    lattice->M = M;
+    lat->E = E;
+    lat->M = M;
 }
 
 Lattice new(int L, int state, int time_seed)
@@ -414,21 +426,21 @@ Lattice new(int L, int state, int time_seed)
     int i, N;
     int *s;
 
-    Lattice lattice;
+    Lattice lat;
     N = L*L;
     s = malloc(sizeof(int) * N);
 
     /* initialise basics */
-    lattice.L = L;
-    lattice.N = N;
-    lattice.XNN = 1;
-    lattice.YNN = L;
-    lattice.M = NULL;
-    lattice.E = NULL;
-    lattice.Mps = NULL;
+    lat.L = L;
+    lat.N = N;
+    lat.XNN = 1;
+    lat.YNN = L;
+    lat.M = NULL;
+    lat.E = NULL;
+    lat.Mps = NULL;
 
     /* Generate random seed */
-    lattice.seed = gen_seed(time_seed);
+    lat.seed = gen_seed(time_seed);
 
     /* Initialize lattice */
     switch(state)
@@ -443,7 +455,7 @@ Lattice new(int L, int state, int time_seed)
 
         case T_INF:
             for (i = 0; i < N; i++) {
-                s[i] = double_ran0(lattice.seed) < 0.5 ? -1 : 1;
+                s[i] = double_ran0(lat.seed) < 0.5 ? -1 : 1;
             }
             break;
 
@@ -452,12 +464,12 @@ Lattice new(int L, int state, int time_seed)
             break;
     }
 
-    lattice.s = s;
+    lat.s = s;
 
-    return lattice;
+    return lat;
 }
 
-void sweep(Lattice *lattice)
+void sweep(Lattice *lat)
 {
     int i, k, nn, sum, delta, N, XNN, YNN, E_old, M_old;
     int *s, *E, *M;
@@ -468,15 +480,15 @@ void sweep(Lattice *lattice)
     dE = 0;
     dM = 0;
 
-    // get values from lattice
-    N = lattice->N;
-    XNN = lattice->XNN;
-    YNN = lattice->YNN;
-    s = lattice->s;
-    E = lattice->E;
-    M = lattice->M;
-    prob = lattice->prob;
-    SEED = lattice->seed;
+    // get values from lattice (for readability)
+    N = lat->N;
+    XNN = lat->XNN;
+    YNN = lat->YNN;
+    s = lat->s;
+    E = lat->E;
+    M = lat->M;
+    prob = lat->prob;
+    SEED = lat->seed;
 
     // save E & M values and increment pointer
     E_old = *E;
@@ -518,18 +530,18 @@ void sweep(Lattice *lattice)
     *M = M_old + dM;
 
     /* move pointers */
-    lattice->E = E;
-    lattice->M = M;
+    lat->E = E;
+    lat->M = M;
 }
 
-void display_lattice(Lattice *lattice)
+void display_lattice(Lattice *lat)
 {
     int i, j, k;
 
-    for (j = 0; j < lattice->L; j++) {
-        for (i = 0; i < lattice->L; i++) {
-            k = (j * lattice->L) + i;
-            printf("%2d ", lattice->s[k]);
+    for (j = 0; j < lat->L; j++) {
+        for (i = 0; i < lat->L; i++) {
+            k = (j * lat->L) + i;
+            printf("%2d ", lat->s[k]);
         }
         printf("\n");
     }
@@ -550,11 +562,11 @@ long *gen_seed(int time_seed)
     return r;
 }
 
-void free_lattice(Lattice *lattice)
+void free_lattice(Lattice *lat)
 {
-    free(lattice->s);
-    free(lattice->M);
-    free(lattice->E);
-    free(lattice->Mps);
-    free(lattice->seed);
+    free(lat->s);
+    free(lat->M);
+    free(lat->E);
+    free(lat->Mps);
+    free(lat->seed);
 }
