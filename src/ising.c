@@ -11,8 +11,6 @@ int main(int argc, char *argv[])
     clock_t t0, t1;
 
     t0 = clock();
-//    phase_diagram();
-    write_spins(100, 1.0, T_INF);
     t1 = clock();
 
     elapsed = (double)(t1 - t0) / CLOCKS_PER_SEC;
@@ -22,11 +20,26 @@ int main(int argc, char *argv[])
 void test()
 {
     Lattice lat;
-    int t_eq;
+    int i, j;
+    int sizes[1] = {100};
+    double temps[25] = {0.2, 0.4, 0.6, 0.8, 1.0, 1.2, 1.4, 1.6, 1.8, 2.0, 2.2, 2.4, 2.6, 2.8, 3.0, 3.2, 3.4, 3.6, 3.8, 4.0, 4.2, 4.4, 4.6, 4.8, 5.0};
 
-    t_eq = equilibration_time(&lat, 50, 1.5);
-    printf("t_eq = %d, Mps[t_eq] = %.5f\n", t_eq, lat.Mps[t_eq]);
+    for (i = 0; i < 25; i++) {
+        printf("T = %.2f: ", temps[i]);
+        for (j = 0; j < 1; j++) {
+            printf("L%d, ", sizes[j]);
+            int t_eq, t_max;
+            Lattice lat;
 
+            t_eq = equilibration_time(&lat, sizes[j], temps[i], FALSE);
+            t_max = t_eq*2 < T_MAX ? t_eq*2 : T_MAX;
+
+            correlation_time(&lat, t_eq, t_max, TRUE);
+        }
+        printf("\n");
+    }
+
+    free_lattice(&lat);
 }
 
 void plot_specific_heat(int L)
@@ -35,7 +48,10 @@ void plot_specific_heat(int L)
     int i;
     double T, pop_mean;
 
-    fp = fopen ("./out/specific_heat.csv","w");
+    char *fname = malloc(sizeof(char) * 50);
+    sprintf(fname, "./out/specific_heat/cvVt_L%d.csv", L);
+    fp = fopen(fname,"w");
+
     fprintf(fp, "T,Cv\n");
 
     for (T = 0.2; T < 5.2; T+=0.2) {
@@ -50,10 +66,10 @@ void plot_specific_heat(int L)
             double Cv;
             Lattice lat;
 
-            t_eq = equilibration_time(&lat, L, T);
-            t_max = t_eq*2;
+            t_eq = equilibration_time(&lat, L, T, FALSE);
+            t_max = t_eq*2 < T_MAX ? t_eq*2 : T_MAX;
 
-            t_corr = correlation_time(lat.M, t_eq, t_max, FALSE);
+            t_corr = correlation_time(&lat, t_eq, t_max, FALSE);
             Cv = specific_heat(&lat, t_eq, t_corr);
 
             #pragma omp atomic
@@ -64,6 +80,7 @@ void plot_specific_heat(int L)
     }
 
     fclose(fp);
+    free(fname);
 }
 
 void autocorrelation(int L)
@@ -72,7 +89,10 @@ void autocorrelation(int L)
     int i;
     double T, pop_mean;
 
-    fp = fopen ("./out/tau.csv","w");
+    char *fname = malloc(sizeof(char) * 50);
+    sprintf(fname, "./out/autocorr/tauVt_L%d.csv", L);
+    fp = fopen(fname,"w");
+
     fprintf(fp, "T,tau\n");
 
     for (T = 0.2; T < 5.2; T+=0.2) {
@@ -83,9 +103,9 @@ void autocorrelation(int L)
         for (i = 0; i < 10; i++) {
             printf("%d, ", i+1);
             Lattice lat;
-            int t_eq = equilibration_time(&lat, L, T);
-            int t_max = 2*t_eq;
-            int tau = correlation_time(lat.M, t_eq, t_max, FALSE);
+            int t_eq = equilibration_time(&lat, L, T, FALSE);
+            int t_max = t_eq*2 < T_MAX ? t_eq*2 : T_MAX;
+            int tau = correlation_time(&lat, t_eq, t_max, FALSE);
 
             #pragma omp atomic
             pop_mean += tau / 10.0;
@@ -95,6 +115,7 @@ void autocorrelation(int L)
     }
 
     fclose(fp);
+    free(fname);
 }
 
 
@@ -105,7 +126,10 @@ void phase_diagram(int L)
     double T, pop_mean;
     Tuple stats;
 
-    fp = fopen ("./out/phase/0mag_sample1.csv","w");
+    char *fname = malloc(sizeof(char) * 50);
+    sprintf(fname, "./out/phase/mag_sample_L%d.csv", L);
+    fp = fopen(fname,"w");
+
     fprintf(fp, "T,Mps\n");
 
     for (T = 0.2; T < 5.2; T+=0.2) {
@@ -124,6 +148,7 @@ void phase_diagram(int L)
         fprintf(fp, "%.1f, %.5f\n", T, pop_mean);
     }
 
+    free(fname);
     fclose(fp);
 }
 
@@ -137,11 +162,11 @@ Tuple sample_magnetization(int L, double temp)
     M_sample = malloc(sizeof(double) * N_SAMPLES);
 
     // find equilibration time
-    t_eq = equilibration_time(&lat, L, temp);
+    t_eq = equilibration_time(&lat, L, temp, FALSE);
 
     // find correlation time
-    t_max = 2*t_eq;
-    t_corr = correlation_time(lat.M, t_eq, t_max, FALSE);
+    t_max = t_eq*2 < T_MAX ? t_eq*2 : T_MAX;
+    t_corr = correlation_time(&lat, t_eq, t_max, FALSE);
 
     t_max_nu = t_eq + 2*N_SAMPLES*t_corr;
     if (t_max_nu > T_MAX) run(&lat, temp, t_max_nu); // rerun if necessary
@@ -162,19 +187,18 @@ Tuple sample_magnetization(int L, double temp)
     return stats;
 }
 
-int correlation_time(int *M, int t_eq, int t_max, int write_out)
+int correlation_time(Lattice *lat, int t_eq, int t_max, int write_to_file)
 {
     int i, tau, t_shift_max;
-    double *X, xnorm;
-    FILE * fp;
+    double *X;
 
     t_shift_max = t_max - t_eq;
     X = malloc(sizeof(double) * t_shift_max);
 
-    X[0] = chi(0, &M[t_eq], t_shift_max);
+    X[0] = chi(0, &(lat->M[t_eq]), t_shift_max);
 
     for (i = 0; i < t_shift_max; i++) {
-        X[i] = chi(i, &M[t_eq], t_shift_max);
+        X[i] = chi(i, &(lat->M[t_eq]), t_shift_max);
     }
 
     tau = 0;
@@ -183,13 +207,20 @@ int correlation_time(int *M, int t_eq, int t_max, int write_out)
     }
 
     /* write to file */
-    if (write_out) {
-        fp = fopen ("./out/chi.csv","w");
-        for (i = 0; i < 250 ; i++) {
+    if (write_to_file & (tau > 0)) {
+        FILE *fp;
+        double xnorm;
+        char *fname = malloc(sizeof(char) * 50);
+
+        sprintf(fname, "./out/autocorr/corr_T%.2f_L%d_tau%d.csv", lat->T, lat->L, tau);
+        fp = fopen(fname,"w");
+
+        for (i = 0; i < (N_SAMPLES/2)*tau ; i++) {
             xnorm = X[i]/X[0];
-            fprintf (fp, "%.5f\n", xnorm);
+            fprintf(fp, "%.5f\n", xnorm);
         }
-        fclose (fp);
+        fclose(fp);
+        free(fname);
     }
 
     free(X);
@@ -204,7 +235,7 @@ double chi(int t, int *M, int t_max)
 
     coeff = 1.0 / (t_max - t);
 
-    // calculate first term
+    // calculate sums
     sum1 = 0, sum2 = 0, sum3 = 0;
     for (tp = 0; tp < t_max - t; tp++) {
         sum1 += M[tp] * M[tp + t];
@@ -217,9 +248,9 @@ double chi(int t, int *M, int t_max)
     return chi;
 }
 
-int equilibration_time(Lattice *lat, int L, double temp)
+int equilibration_time(Lattice *lat, int L, double temp, int write_to_file)
 {
-    int t_eq, diff_count;
+    int t_eq, diff_count, coeff;
     double diff;
     Lattice lat1, lat2;
 
@@ -243,12 +274,15 @@ int equilibration_time(Lattice *lat, int L, double temp)
         if (temp < Tc) {
             // compensate for alternate sign equilibrium
             diff = fabs(fabs(lat2.Mps[t_eq]) - fabs(lat1.Mps[t_eq]));
+
         } else {
-            diff = fabs(lat2.Mps[t_eq] - lat1.Mps[t_eq]);
+            diff = (L / 200.0) * fabs(lat2.Mps[t_eq] - lat1.Mps[t_eq]);
         }
 
+        coeff = abs(temp - Tc) < 0.15 ? 10/sqrt(L) : 1;
+
         /* check if difference is within specified threshold */
-        if (diff < THRESHOLD) {
+        if (diff < coeff * THRESHOLD) {
             diff_count++;
         } else {
             diff_count = 0;
@@ -258,6 +292,27 @@ int equilibration_time(Lattice *lat, int L, double temp)
     }
 
     t_eq -= DIFF_MAX; // move back to start of equilibrium
+
+    /* write to file */
+    if (write_to_file) {
+        FILE *fp;
+        int i, t_max, flip;
+        char *fname = malloc(sizeof(char) * 50);
+
+        sprintf(fname, "./out/equil/eq_T%.2f_L%d_teq%d.csv", temp, L, t_eq);
+        fp = fopen(fname,"w");
+
+        fprintf(fp, "M1, M2\n");
+        t_max = 2*t_eq < T_MAX ? 2*t_eq : T_MAX;
+        t_max = t_max > 500 ? t_max : 500;
+        flip = lat2.Mps[t_max-1] > 0 ? 1 : -1;
+
+        for (i = 0; i < t_max; i++) {
+            fprintf(fp, "%.5f, %.5f\n", lat1.Mps[i], flip*lat2.Mps[i]);
+        }
+        fclose(fp);
+        free(fname);
+    }
 
     /* copy lat1 to given lat argument and free lat2*/
     copy_lattice(lat, &lat1);
@@ -295,7 +350,7 @@ void write_spins(int L, double temp, int init_state)
     file_name = malloc(sizeof(char) * 50);
     sprintf(file_name, "out/spins/spins_L%d_T%.1f.txt", L, temp);
 
-    fp = fopen (file_name,"w");
+    fp = fopen(file_name,"w");
 
     lat = new(L, init_state, TIME_SEED);
     initialize(&lat, temp, T_MAX/5);

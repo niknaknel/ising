@@ -18,7 +18,7 @@
 #define TYPE_DOUBLE 1
 #define N_SAMPLES 10.0
 #define T_MAX 10000
-#define THRESHOLD 0.1
+#define THRESHOLD 0.04
 #define DIFF_MAX 50
 #define TRUE 1
 #define FALSE 0
@@ -71,9 +71,9 @@ void plot_specific_heat(int L);
 void phase_diagram(int L);
 void autocorrelation(int L);
 Tuple sample_magnetization(int L, double temp);
-int correlation_time(int *M, int t_eq, int t_max, int write_out);
+int correlation_time(Lattice *lat, int t_eq, int t_max, int write_to_file);
 double chi(int t, int *M, int t_max);
-int equilibration_time(Lattice *lat, int L, double temp);
+int equilibration_time(Lattice *lat, int L, double temp, int write_to_file);
 double specific_heat(Lattice *lat, int t_eq, int t_corr);
 void write_spins(int L, double temp, int init_state);
 void test();
