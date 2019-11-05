@@ -5,11 +5,10 @@
 
 #ifndef PHYS344_ISING_H
 #define PHYS344_ISING_H
-#endif //PHYS344_ISING_H
 
-#define T_ZERO_NEG 0  // uniform 1s initial state
-#define T_ZERO_POS 1  // uniform -1s initial state
-#define T_INF 2       // random initial state
+#define T_ZERO_NEG 0  // Uniform 1s initial state
+#define T_ZERO_POS 1  // Uniform -1s initial state
+#define T_INF 2       // Random initial state
 #define J 1
 #define Tc 2.2        // Critical temperature
 #define STATIC_SEED 0
@@ -18,8 +17,8 @@
 #define TYPE_DOUBLE 1
 #define N_SAMPLES 10.0
 #define T_MAX 10000
-#define THRESHOLD 0.04
-#define DIFF_MAX 50
+#define THRESHOLD 0.04 // Threshold for determining equilibrium
+#define DIFF_MAX 50    // Number
 #define TRUE 1
 #define FALSE 0
 
@@ -54,26 +53,31 @@ typedef struct {
     double stddev;
 } Tuple;
 
-/* Utility Functions */
-void write_result(char *file_name, double *M, int t_max);
-double *read_result(char *file_name, int t_max);
-void run(Lattice *lat, double temp, int t_max);
-void initialize(Lattice *lat, double temp, int t_max);
+/* Output Functions */
+void phase_diagram(int L);
+void autocorrelation(int L);
+void plot_specific_heat(int L);
+void write_spins(int L, double temp, int init_state);
+
+/* Lattice Functions */
 Lattice new(int L, int state, int time_seed);
+void initialize(Lattice *lat, double temp, int t_max);
+void run(Lattice *lat, double temp, int t_max);
 void sweep(Lattice *lat);
 void display_lattice(Lattice *lat);
 long *gen_seed(int time_seed);
 void free_lattice(Lattice *lat);
 void copy_lattice(Lattice *new, Lattice *lat);
 
-/* Output Functions */
-void plot_specific_heat(int L);
-void phase_diagram(int L);
-void autocorrelation(int L);
+/* Helper Functions */
 Tuple sample_magnetization(int L, double temp);
 int correlation_time(Lattice *lat, int t_eq, int t_max, int write_to_file);
 double chi(int t, int *M, int t_max);
 int equilibration_time(Lattice *lat, int L, double temp, int write_to_file);
 double specific_heat(Lattice *lat, int t_eq, int t_corr);
-void write_spins(int L, double temp, int init_state);
-void test();
+
+/* Utility Functions */
+void write_result(char *file_name, double *M, int t_max);
+double *read_result(char *file_name, int t_max);
+
+#endif //PHYS344_ISING_H

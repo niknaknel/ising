@@ -4,7 +4,7 @@ import sys
 
 # read file
 fname = sys.argv[1]
-data = pd.read_csv(fname)
+data = pd.read_csv(fname, names=['X(t)'])
 
 if "corr" in fname:
     # plot data
