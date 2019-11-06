@@ -41,7 +41,7 @@ void phase_diagram(int L)
         printf("T = %.2f: ", T);
         grand_mean = 0, stddev_of_means = 0, var_of_means = 0;
 
-#pragma omp parallel
+        #pragma omp parallel for
         for (i = 0; i < 10; i++) {
             printf("%d, ", i+1);
             stats = sample_magnetization(L, T);
@@ -72,7 +72,7 @@ void autocorrelation(int L)
 {
     FILE * fp;
     int i;
-    double T, grand_mean;
+    double T, mean;
 
     char *fname = malloc(sizeof(char) * 50);
     sprintf(fname, "./out/autocorr/tauVt_L%d.csv", L);
@@ -82,9 +82,9 @@ void autocorrelation(int L)
 
     for (T = 0.2; T < 5.2; T+=0.2) {
         printf("T = %.2f: ", T);
-        grand_mean = 0;
+        mean = 0;
 
-        #pragma omp parallel for shared(grand_mean)
+        #pragma omp parallel for shared(mean)
         for (i = 0; i < 10; i++) {
             printf("%d, ", i+1);
             Lattice lat;
@@ -93,10 +93,10 @@ void autocorrelation(int L)
             int tau = correlation_time(&lat, t_eq, t_max, FALSE);
 
             #pragma omp atomic
-            grand_mean += tau / 10.0;
+            mean += tau / 10.0;
         }
         printf("\n");
-        fprintf(fp, "%.1f, %.5f\n", T, grand_mean);
+        fprintf(fp, "%.1f, %.5f\n", T, mean);
     }
 
     fclose(fp);
@@ -113,7 +113,7 @@ void plot_specific_heat(int L)
 {
     FILE * fp;
     int i;
-    double T, sample_means[10], grand_mean, var_of_means, stddev_of_means;
+    double T, samples[10], mean, var, stddev;
 
     char *fname = malloc(sizeof(char) * 50);
     sprintf(fname, "./out/specific_heat/cvVt_L%d.csv", L);
@@ -123,7 +123,7 @@ void plot_specific_heat(int L)
 
     for (T = 0.2; T < 5.2; T+=0.2) {
         printf("T = %.2f: ", T);
-        grand_mean = 0, stddev_of_means = 0, var_of_means = 0;
+        mean = 0, stddev = 0, var = 0;
 
         #pragma omp parallel for
         for (i = 0; i < 10; i++) {
@@ -139,16 +139,16 @@ void plot_specific_heat(int L)
             t_corr = correlation_time(&lat, t_eq, t_max, FALSE);
 
             Cv = specific_heat(&lat, t_eq, t_corr);
-            sample_means[i] = Cv;
+            samples[i] = Cv;
         }
 
         /* calculate statistics */
-        for (i = 0; i < 10; i++) grand_mean += sample_means[i]/10.0;
-        for (i = 0; i < 10; i++) var_of_means += pow(sample_means[i] - grand_mean, 2)/10.0;
-        stddev_of_means = sqrt(var_of_means);
+        for (i = 0; i < 10; i++) mean += samples[i]/10.0;
+        for (i = 0; i < 10; i++) var += pow(samples[i] - mean, 2)/10.0;
+        stddev = sqrt(var);
 
         printf("\n");
-        fprintf(fp, "%.1f, %.5f, %.5f\n", T, grand_mean, stddev_of_means);
+        fprintf(fp, "%.1f, %.5f, %.5f\n", T, mean, stddev);
     }
 
     fclose(fp);
@@ -210,7 +210,7 @@ Tuple sample_magnetization(int L, double temp)
 
     /* sample magnetization and calculate mean and variance */
     for (i = 0; i < N_SAMPLES; i++) {
-        M_sample[i] = lat.Mps[t_eq + i*t_corr];
+        M_sample[i] = lat.Mps[t_eq + i*2*t_corr];
     }
 
     mean = 0, var = 0;
@@ -366,7 +366,7 @@ double specific_heat(Lattice *lat, int t_eq, int t_corr)
     mean = 0, var = 0;
 
     /* calculate mean */
-    for (i = 0; i < N_SAMPLES; i++) mean += lat->E[t_eq + i*t_corr]/N_SAMPLES;
+    for (i = 0; i < N_SAMPLES; i++) mean += lat->E[t_eq + i*t_corr]/(N_SAMPLES);
 
     /* calculate variance */
     for (i = 0; i < N_SAMPLES; i++) var += pow(lat->E[t_eq + i*t_corr] - mean, 2) / (N_SAMPLES-1);

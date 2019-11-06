@@ -18,7 +18,7 @@
 #define N_SAMPLES 10.0
 #define T_MAX 10000
 #define THRESHOLD 0.04 // Threshold for determining equilibrium
-#define DIFF_MAX 50    // Number
+#define DIFF_MAX 50    // Number of consecutive difference within the threshold for equilibrium
 #define TRUE 1
 #define FALSE 0
 
