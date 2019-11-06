@@ -14,6 +14,7 @@ int main(int argc, char *argv[])
     phase_diagram(100);
     t1 = clock();
 
+
     elapsed = (double)(t1 - t0) / CLOCKS_PER_SEC;
     printf("time elapsed: %f\n", elapsed);
 }
